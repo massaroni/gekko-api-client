@@ -1,0 +1,26 @@
+{
+  "name": "gekko-api-client",
+  "version": "0.0.1",
+  "description": "A client for the Gekko Trading Bot REST API.",
+  "keywords": [
+    "gekko"
+  ],
+  "scripts": {},
+  "author": "Kevin Massaroni <kevinmassaroni@gmail.com>",
+  "main": "gekko-api-client.js",
+  "dependencies": {
+    "lodash": "2.x",
+    "moment": "^2.20.1",
+    "request": "^2.83.0",
+    "ws": "^6.0.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=8.11.2"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/massaroni/gekko-client.git"
+  }
+}
