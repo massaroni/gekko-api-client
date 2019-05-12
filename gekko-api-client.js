@@ -146,12 +146,15 @@ GekkoApiClient.prototype = {
       method: 'POST',
       json: json
     };
+    this._verbose(options);
+    const self = this;
 
     return new Promise((resolve, reject) => {
       request.post(options, function (error, response, body) {
         try {
           if (response.statusCode >= 200 && response.statusCode <= 299) {
             resolve(body);
+            self._verbose(body);
           } else {
             reject({error: error, response: response, body: body});
           }
@@ -182,7 +185,7 @@ GekkoApiClient.prototype = {
       if (_.isFunction(verbose)) {
         verbose(...args);
       } else {
-        console.log(...args);
+        console.log(_.map(args, JSON.stringify));
       }
     }
   }
