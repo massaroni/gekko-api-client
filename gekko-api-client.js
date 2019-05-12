@@ -152,7 +152,7 @@ GekkoApiClient.prototype = {
     return new Promise((resolve, reject) => {
       request.post(options, function (error, response, body) {
         try {
-          if (response.statusCode >= 200 && response.statusCode <= 299) {
+          if (!!response && !!response.statusCode && response.statusCode >= 200 && response.statusCode <= 299) {
             resolve(body);
             self._verbose(body);
           } else {
