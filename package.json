@@ -1,6 +1,6 @@
 {
   "name": "gekko-api-client",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "description": "A client for the Gekko Trading Bot REST API.",
   "keywords": [
     "gekko"
