@@ -2,11 +2,6 @@ const _ = require('lodash');
 const request = require('request');
 const WebSocket = require('ws');
 const DEFAULT_GEKKO_PORT = 3000;
-const supportedGekkoModes = {
-  realtime: 1,
-  importer: 1,
-  backtest: 1
-};
 
 const GekkoApiClient = function (host, port, options) {
   this.host = host;
@@ -130,104 +125,13 @@ GekkoApiClient.prototype = {
     });
   },
 
-  startGekko: async function (config) {
-    return this._post('/api/startGekko', config);
-  },
-
-  deleteGekko: async function (gekkoId) {
-    return this._post('/api/deleteGekko', {id: gekkoId});
-  },
-
-  listGekkos: async function () {
-    return this._get('/api/gekkos');
-  },
-
   /**
    * Run a backtest and resolve the results when it's done.
    * 
    * @param {*} config 
    */
-  runBacktest: async function (config, onEvent) {
-    checkGekkoConfig(config);
-    let backtestConfig = _.clone(config);
-    config.type = 'backtest';
-    config.mode = config.type;
-    return this.runGekkoSync(backtestConfig, onEvent);
-  },
-
-  runGekkoSync: async function (config, onEvent, force) {
-    checkGekkoConfig(config);
-    if (!force && (!_.isString(config.mode) || !supportedGekkoModes[config.mode])) {
-      throw 'Unsupported gekko mode: ' + config.mode;
-    }
-    if (!force && !_.isString(config.type)) {
-      throw 'Gekko config object missing "type" property.';
-    }
-
-    const self = this;
-    return new Promise((resolve, reject) => {
-      try {
-        let ws = self.newWebsocket();
-        let started = false;
-        let done = false;
-        let gekkoId;
-        const closeSocket = function () {
-          done = true;
-          ws.close();
-          if (!!gekkoId) {
-            self.deleteGekko(gekkoId);
-          }
-        };
-    
-        ws.on('open', async function open() {
-          try {
-            started = true;
-            let response = await self.startGekko(config);
-            gekkoId = (response || {}).id;
-            if (!gekkoId || !response.active || response.stopped || response.errored) {
-              reject({msg: 'Failed starting new gekko job.', response});
-              closeSocket();
-            }
-          } catch (e) {
-            reject(e);
-            closeSocket();
-          }
-        });
-        
-        ws.on('close', function close() {
-          if (!started) {
-            reject('failed opening websocket');
-          } else if (!done) {
-            reject('websocket closed early');
-          } else {
-            self._verbose('websocket closed');
-          }
-        });
-        
-        ws.on('message', function incoming(data) {
-          data = JSON.parse(data);
-          if (!done && data.id === gekkoId) {
-            if (data.type === 'gekko_stopped') {
-              resolve(data);
-              closeSocket();
-            } else if (data.type === 'gekko_error') {
-              reject(data);
-              closeSocket();
-            }
-
-            if (_.isFunction(onEvent)) {
-              try {
-                onEvent(data, config);
-              } catch (e) {
-                console.error(e);
-              }
-            }
-          }
-        });
-      } catch (e) {
-        reject(e);
-      }
-    });
+  runBacktest: async function (config) {
+    return this._post('/api/backtest', config);
   },
 
   /**
@@ -264,28 +168,6 @@ GekkoApiClient.prototype = {
     });
   },
 
-  _get: async function (path) {
-    const self = this;
-    const url = 'http://' + this.host + ':' + (this.port || DEFAULT_GEKKO_PORT) + path;
-    return new Promise((resolve, reject) => {
-      const startMs = Date.now();
-      request.get(url, function (error, response, body) {
-        const endMs = Date.now();
-        const durationS = (endMs - startMs) / 1000;
-        try {
-          if (!!response && !!response.statusCode && response.statusCode >= 200 && response.statusCode <= 299) {
-            resolve(body);
-            self._verbose(body);
-          } else {
-            reject({error, response, body, startMs, endMs, durationS});
-          }
-        } catch (e) {
-          reject({error, response, body, startMs, endMs, durationS, e});
-        }
-      });
-    });
-  },
-
   /**
    * Open a new gekko websocket.
    */
@@ -312,11 +194,5 @@ GekkoApiClient.prototype = {
   }
 
 };
-
-function checkGekkoConfig(config) {
-  if (!_.isPlainObject(config)) {
-    throw 'Invalid gekko config object.';
-  }
-}
 
 module.exports = GekkoApiClient;
