@@ -150,16 +150,19 @@ GekkoApiClient.prototype = {
     const self = this;
 
     return new Promise((resolve, reject) => {
+      const startMs = Date.now();
       request.post(options, function (error, response, body) {
+        const endMs = Date.now();
+        const durationS = (endMs - startMs) / 1000;
         try {
           if (!!response && !!response.statusCode && response.statusCode >= 200 && response.statusCode <= 299) {
             resolve(body);
             self._verbose(body);
           } else {
-            reject({error: error, response: response, body: body});
+            reject({error, options, response, body, startMs, endMs, durationS});
           }
         } catch (e) {
-          reject(e);
+          reject({error, options, response, body, startMs, endMs, durationS, e});
         }
       });
     });
