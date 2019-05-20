@@ -1,5 +1,13 @@
 # Gekko API Client
 
+Use __GekkoApiClient__ for connecting to a remote Gekko host.
+<br/>
+
+Use __GekkoClientPool__ for managing a farm of Gekko hosts.  Synchronize market data on all hosts with a single function call, and run lots of backtests concurrently, to get the best performance out of your Gekko farm.
+<br/>
+
+Synchronizing data on many Gekko hosts is faster with a master/slave configuration: one host acts as the master importer and pulls data from the exchange.  All the other hosts pull data from the master host, via their [Gekko proxy-importer plugin (available in this fork)](https://github.com/massaroni/gekko/tree/feature/proxy-importer), pointing at the master.
+
 [Gekko](https://github.com/askmike/gekko) is a Bitcoin TA trading and backtesting platform that connects to popular Bitcoin exchanges. The Gekko Server exposes two different APIs: A REST API for controlling the server and querying its market data, and a websocket API to push gekko updates. This package is a client for those APIs, so that you can connect to a Gekko Server from another javascript project.
 
 Note that this client doesn't yet support all the API endpoints, and I will add more as I come to need them in my own project.
@@ -10,6 +18,8 @@ Please feel free to add support for other endpoints and submit a pull request.
 See [the Gekko Server API documentation](https://gekko.wizb.it/docs/internals/server_api.html).
 
 ## Examples
+
+### GekkoApiClient
 
 Find all date ranges with available candle data, for a specific market.
 
@@ -223,4 +233,200 @@ results:
         // and more
     ]
 }
+```
+
+### GekkoClientPool
+
+Synchronize market data on 3 Gekko hosts.
+```javascript
+const GekkoClientPool = require('gekko-api-client').GekkoClientPool;
+const moment = require('moment');
+
+let pool = new GekkoClientPool([
+  { host: '192.168.1.10', threads: 12 },
+  { host: '192.168.1.11', threads: 3, port: 3001 },
+  { host: '192.168.1.12', threads: 5 }
+]);
+
+let from = moment.utc('2019-04-01 00:00:00');
+let to = moment.utc('2019-04-15 00:00:00');
+let watch = {
+    exchange: 'binance',
+    currency: 'USDT',
+    asset: 'BTC'
+};
+await pool.ensureDataReadyAllHosts(from, to, watch, console.log);
+// and now this data is ready on all hosts
+```
+
+Synchronize market data on 3 Gekko hosts, for different assets and exchanges.
+```javascript
+const GekkoClientPool = require('gekko-api-client').GekkoClientPool;
+const moment = require('moment');
+
+let pool = new GekkoClientPool([
+  { host: '192.168.1.10', threads: 12 },
+  { host: '192.168.1.11', threads: 3, port: 3001 },
+  { host: '192.168.1.12', threads: 5 }
+]);
+
+let from = moment.utc('2019-04-01 00:00:00');
+let to = moment.utc('2019-04-15 00:00:00');
+let exchanges = ['binance', 'poloniex'];
+let currencyPairs = [
+  {currency: 'USDT', asset: 'BTC'},
+  {currency: 'USDT', asset: 'XRP'},
+  {currency: 'USDT', asset: 'ADA'},
+  {currency: 'USDT', asset: 'ETH'}
+];
+
+await pool.ensureDataReadyAllHostsAllWatches(from, to, exchanges, currencyPairs, console.log);
+// and now this data is ready on all hosts
+```
+
+Run lots of concurrent backtests on all these hosts.  Each host's "threads" property acts to limit the number of concurrent backtests on that host.
+```javascript
+const GekkoClientPool = require('gekko-api-client').GekkoClientPool;
+const moment = require('moment');
+
+let pool = new GekkoClientPool([
+  { host: '192.168.1.10', threads: 12, strat: 'moon' },
+  { host: '192.168.1.11', threads: 3, strat: 'moon', port: 3001 },
+  { host: '192.168.1.12', threads: 5, strat: 'star' }
+]);
+
+let backtestPromises = [];
+for (let i = 0; i < 100; i++) {
+  let backtestConfig = {
+    starStrat: {
+      prop1: 1234,
+      prop2: [4, 5, 6],
+      propI: i
+    },
+    watch: {
+      exchange: 'binance',
+      currency: 'USDT',
+      asset: 'BTC'
+    },
+    tradingAdvisor: {
+      enabled: true,
+      method: 'starStrat',
+      candleSize: 1,
+      historySize: 10
+    },
+    backtest: {
+      daterange: {
+          from: "2019-04-01 00:00:00",
+          to: "2019-04-15 00:00:00"
+      }
+    },
+    paperTrader: {
+      feeMaker: 0.1,
+      feeTaker: 0.1,
+      feeUsing: "maker",
+      slippage: 0.09,
+      simulationBalance: {
+        asset: 1,
+        currency: 100
+      },
+      reportRoundtrips: true,
+      enabled: true
+    },
+    backtestResultExporter: {
+      enabled: true,
+      writeToDisk: false,
+      data: {
+        stratUpdates: false,
+        roundtrips: false,
+        stratCandles: false,
+        stratCandleProps: ["open"],
+        trades: false
+      }
+    },
+    performanceAnalyzer: {
+      riskFreeReturn: 2,
+      enabled: true
+    }
+  };
+
+  backtestPromises.push(gekkoClient.runBacktest(config));
+}
+
+let allResults = await Promise.all(backtestPromises);
+```
+
+Run lots of concurrent backtests on all these hosts.  Each host's "threads" property acts to limit the number of concurrent backtests on that host.  In this example, we're also customizing the backtest config based on the given host.
+```javascript
+const GekkoClientPool = require('gekko-api-client').GekkoClientPool;
+const moment = require('moment');
+
+let pool = new GekkoClientPool([
+  { host: '192.168.1.10', threads: 12, strat: 'moon' },
+  { host: '192.168.1.11', threads: 3, strat: 'moon', port: 3001 },
+  { host: '192.168.1.12', threads: 5, strat: 'star' }
+]);
+
+let backtestPromises = [];
+for (let i = 0; i < 100; i++) {
+  let hostToConfig = function (host) {
+    const strategyName = host.strat;
+
+    let backtestConfig = {
+      watch: {
+        exchange: 'binance',
+        currency: 'USDT',
+        asset: 'BTC'
+      },
+      tradingAdvisor: {
+        enabled: true,
+        method: strategyName,
+        candleSize: 1,
+        historySize: 10
+      },
+      backtest: {
+        daterange: {
+            from: "2019-04-01 00:00:00",
+            to: "2019-04-15 00:00:00"
+        }
+      },
+      paperTrader: {
+        feeMaker: 0.1,
+        feeTaker: 0.1,
+        feeUsing: "maker",
+        slippage: 0.09,
+        simulationBalance: {
+          asset: 1,
+          currency: 100
+        },
+        reportRoundtrips: true,
+        enabled: true
+      },
+      backtestResultExporter: {
+        enabled: true,
+        writeToDisk: false,
+        data: {
+          stratUpdates: false,
+          roundtrips: false,
+          stratCandles: false,
+          stratCandleProps: ["open"],
+          trades: false
+        }
+      },
+      performanceAnalyzer: {
+        riskFreeReturn: 2,
+        enabled: true
+      }
+    };
+    backtestConfig[strategyName] = {
+        prop1: 1234,
+        prop2: [4, 5, 6],
+        propI: i
+    };
+    return backtestConfig;
+  };
+
+  backtestPromises.push(gekkoClient.runBacktest(hostToConfig));
+}
+
+let allResults = await Promise.all(backtestPromises);
 ```
