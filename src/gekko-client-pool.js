@@ -87,20 +87,22 @@ class GekkoClientPool {
   }
 
   async runBacktest(backtestConfig) {
-    let token;
+    let token, result;
     try {
       token = await this._getHostToken();
       let host = token.host;
       let client = new GekkoApiClient(host.host, host.port);
       let config = _.isFunction(backtestConfig) ? backtestConfig(token.host) : backtestConfig;
-      return client.runBacktest(config);
+      result = await client.runBacktest(config);
     } catch (e) {
       console.error('ERROR GekkoClientPool::runBacktest ', JSON.stringify(token));
       console.error(e);
-      throw e;
-    } finally {
       this._returnHostToken(token);
+      throw e;
     }
+
+    this._returnHostToken(token);
+    return result;
   }
 
 }
