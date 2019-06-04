@@ -1,6 +1,6 @@
 {
   "name": "gekko-api-client",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "description": "A client for the Gekko Trading Bot REST API.",
   "keywords": [
     "gekko"
@@ -12,7 +12,7 @@
   "author": "Kevin Massaroni <kevinmassaroni@gmail.com>",
   "main": "index.js",
   "dependencies": {
-    "int-interval-set": "^0.1.1",
+    "int-interval-set": "^0.1.2",
     "lodash": "^4.17.11",
     "moment": "^2.20.1",
     "priority-blocking-queue": "^1.0.1",
